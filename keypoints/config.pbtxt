@@ -1,11 +1,11 @@
 name: "keypoints"
 platform: "ensemble"
-max_batch_size: 0
+max_batch_size: 8
 input [
   {
     name: "input"
     data_type: TYPE_STRING
-    dims: [ -1, 1 ]
+    dims: [ 1 ]
   }
 ]
 output [
@@ -13,6 +13,11 @@ output [
     name: "kpoints"
     data_type: TYPE_FP32
     dims: [ -1, 17, 3 ]
+  },
+  {
+    name: "boxes"
+    data_type: TYPE_FP32
+    dims: [ -1, 4 ]
   },
   {
     name: "scores"
@@ -37,6 +42,10 @@ ensemble_scheduling {
         key: "scale"
         value: "scale"
       }
+      output_map {
+        key: "pad"
+        value: "pad"
+      }   
     },
     {
       model_name: "keypoints-infer"
@@ -77,9 +86,17 @@ ensemble_scheduling {
         key: "scale"
         value: "scale"
       }    
+      input_map {
+        key: "pad"
+        value: "pad"
+      }    
       output_map {
         key: "kpoints"
         value: "kpoints"
+      }
+      output_map {
+        key: "boxes"
+        value: "boxes"
       }
       output_map {
         key: "scores"

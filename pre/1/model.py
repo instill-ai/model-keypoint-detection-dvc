@@ -4,27 +4,51 @@ import json
 
 from typing import List
 from PIL import Image
+import cv2
 
 from triton_python_backend_utils import Tensor, InferenceResponse, \
     get_input_tensor_by_name, InferenceRequest, get_output_config_by_name, triton_string_to_numpy
 
-def scale_up(img, min_size=800):
-    w, h = img.size
-    if w < h:
-        scale = min_size / w
-        new_size = (min_size, h*min_size//w)
-    else:
-        scale = min_size / h
-        new_size = (w*min_size//h, min_size)
-    img = img.resize(new_size)
-    return img, scale
+
+def preprocess(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
+    # Resize and pad image while meeting stride-multiple constraints
+    shape = img.shape[:2]  # current shape [height, width]
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+
+    # Scale ratio (new / old)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    if not scaleup:  # only scale down, do not scale up (for better test mAP)
+        r = min(r, 1.0)
+    # Compute padding
+    ratio = r, r  # width, height ratios
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
+    if auto:  # minimum rectangle
+        dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
+    elif scaleFill:  # stretch
+        dw, dh = 0.0, 0.0
+        new_unpad = (new_shape[1], new_shape[0])
+        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
+
+    dw /= 2  # divide padding into 2 sides
+    dh /= 2
+
+    if shape[::-1] != new_unpad:  # resize
+        img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    return img, ratio, (dw, dh)
+
 
 class TritonPythonModel(object):
     def __init__(self):
         self.tf = None
         self.output_names = {
             'image': 'image',
-            'scale': 'scale'
+            'scale': 'scale',
+            'pad': 'pad'
         }
 
     def initialize(self, args):
@@ -49,7 +73,6 @@ class TritonPythonModel(object):
         self.output_dtypes = {k: triton_string_to_numpy(
             cfg['data_type']) for k, cfg in output_configs.items()}
 
-
     def execute(self, inference_requests: List[InferenceRequest]) -> List[InferenceResponse]:
         input_name = 'input'
 
@@ -70,11 +93,14 @@ class TritonPythonModel(object):
 
             for img in batch_in:  # img is shape (1,)
                 pil_img = Image.open(io.BytesIO(img.astype(bytes)))
-                img, scale = scale_up(pil_img)
-                img = np.array(img)
-                img = np.transpose(img, (2, 0, 1))
-                batch_out['image'].append(np.array(img))
-                batch_out['scale'].append([scale])
+                image = np.array(pil_img)
+                if len(image.shape) == 2:  # gray image
+                    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+                image, scale, pad = preprocess(image, 960, stride=64, auto=False)
+                image = np.transpose(image, (2, 0, 1))
+                batch_out['image'].append(image)
+                batch_out['scale'].append(scale)
+                batch_out['pad'].append(pad)
             # Format outputs to build an InferenceResponse
             # Assumes there is only one output
             output_tensors = [Tensor(self.output_names[k], np.asarray(

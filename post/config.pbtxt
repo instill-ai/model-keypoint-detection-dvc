@@ -1,6 +1,6 @@
 name: "post"
 backend: "python"
-max_batch_size: 0
+max_batch_size: 8
 input [
   {
     name: "pred_keypoints"
@@ -10,7 +10,7 @@ input [
   {
     name: "pred_scores"
     data_type: TYPE_FP32
-     dims: [ -1, -1 ]
+     dims: [ -1 ]
   },  
   {
     name: "pred_boxes"
@@ -20,7 +20,12 @@ input [
   {
     name: "scale"
     data_type: TYPE_FP32
-    dims: [ -1, 1 ]
+    dims: [ 2 ]
+  },
+  {
+    name: "pad"
+    data_type: TYPE_FP32
+    dims: [ 2 ]
   }
 ]
 output [
@@ -28,6 +33,11 @@ output [
     name: "kpoints"
     data_type: TYPE_FP32
     dims: [ -1, 17, 3 ]
+  },
+  {
+    name: "boxes"
+    data_type: TYPE_FP32
+    dims: [ -1, 4 ]
   },
   {
     name: "scores"

@@ -1,6 +1,6 @@
 name: "pre"
 backend: "python"
-max_batch_size: 32
+max_batch_size: 8
 input [
   {
     name: "input"
@@ -17,7 +17,12 @@ output [
   {
     name: "scale"
     data_type: TYPE_FP32
-    dims: [ 1 ]
+    dims: [ 2 ]
+  },
+  {
+    name: "pad"
+    data_type: TYPE_FP32
+    dims: [ 2 ]
   }
 ]
 instance_group [
