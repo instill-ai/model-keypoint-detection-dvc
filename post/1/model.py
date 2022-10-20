@@ -22,19 +22,14 @@ class TritonPythonModel(PostKeypointDetectionModel):
             image_kps = []
             image_bbs = []
             image_scs = []
-            print("---->>> image_pred_keypoints ", np.array(image_pred_keypoints))
             for i, score in enumerate(image_scores):
                 if score < 0.8:
                     continue
                 kps = image_pred_keypoints[i]
-                print("---->>> kps ", np.array(kps))
-                print("---->>> kps len ", len(kps))
                 obj_kps = []
                 for kp in kps:
                     obj_kps.append([(kp[0]-image_pads[0])/image_scales[0], (kp[1]-image_pads[1])/image_scales[1], kp[2]])
-                print("---->>> obj_kps len ", len(obj_kps))
                 image_kps.append(obj_kps)
-                print("---->>>> image_kps", np.array(image_kps).shape, image_kps)
                 x, y, w, h = image_boxes[i]
                 x = int((x-image_pads[0])/image_scales[0])
                 y = int((y-image_pads[1])/image_scales[1])
@@ -46,16 +41,10 @@ class TritonPythonModel(PostKeypointDetectionModel):
             batch_scs.append(image_scs)
             batch_bbs.append(image_bbs)
 
-        print("---->>> 000 batch_kps ", np.array(batch_kps).shape)
-        print("---->>> 000 batch_scs ", np.array(batch_scs).shape, batch_scs)
-        print("---->>> 000 batch_bbs ", np.array(batch_bbs).shape, batch_bbs)
         max_objs = max([len(i) for i in batch_bbs])
         for kps, bbs, scs in zip(batch_kps, batch_bbs, batch_scs): # add dummy data to make sure same shape for broadcast result
             for _ in range(max_objs - len(bbs)):
                 kps.append([[-1, -1, -1]] * 17)
                 bbs.append([-1, -1, -1, -1])
                 scs.append(0)
-        print("---->>> 111 batch_kps ", np.array(batch_kps).shape)
-        print("---->>> 111 batch_scs ", np.array(batch_scs).shape, batch_scs)
-        print("---->>> 111 batch_bbs ", np.array(batch_bbs).shape, batch_bbs)
         return [np.array(batch_kps), np.array(batch_bbs), np.array(batch_scs)]
